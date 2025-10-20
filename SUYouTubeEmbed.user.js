@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SU YouTube Embed
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
-// @version      1.1
+// @version      1.2
 // @description  Embed the top YouTube review video on SteamUnderground game pages (scrapes search results, no API needed)
 // @match        https://steamunderground.net/*
 // @grant        GM_xmlhttpRequest
@@ -10,9 +10,14 @@
 (function () {
   'use strict';
 
-  const log = console.log.bind(console);
-  const STRIP_WORDS = ["PC Game", "Free Download"];
-  const QUERIES = ["review", "gameplay", "impressions", "first look", "early access", "trailer", "overview", ""];
+  // 🔧 Config block
+  const CONFIG = {
+    stripWords: ["PC Game", "Free Download"],
+    queries: ["review", "gameplay", "impressions", "first look", "early access", "trailer", "overview", ""],
+    maxResults: 1
+  };
+
+  const log = (...args) => console.log("[SUYouTubeEmbed]", ...args);
 
   function cleanGameTitle(rawTitle) {
     let cutoffIndex = rawTitle.length;
@@ -23,26 +28,40 @@
 
     let clean = rawTitle.substring(0, cutoffIndex);
     clean = clean.replace(/\(.*?\)/g, ""); // remove parentheses
-    STRIP_WORDS.forEach(word => {
+    CONFIG.stripWords.forEach(word => {
       clean = clean.replace(new RegExp(word, "gi"), "");
     });
     return clean.trim();
   }
 
   function embedVideo(videoId, titleEl) {
-    if (document.querySelector("iframe[data-ytreview]")) return;
+    // Clear old container if exists
+    const old = document.querySelector("div[data-ytreview-container]");
+    if (old) old.remove();
+
+    const container = document.createElement("div");
+    container.setAttribute("data-ytreview-container", "true");
+    container.style.display = "flex";
+    container.style.flexWrap = "wrap";
+    container.style.gap = "10px";
+    container.style.marginTop = "10px";
 
     const iframe = document.createElement("iframe");
-    iframe.width = "560";
-    iframe.height = "315";
     iframe.src = `https://www.youtube.com/embed/${videoId}`;
+    iframe.style.width = "100%";
+    iframe.style.maxWidth = "560px";
+    iframe.style.aspectRatio = "16/9";
     iframe.frameBorder = "0";
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
     iframe.allowFullscreen = true;
-    iframe.setAttribute("data-ytreview", "true");
 
-    titleEl.insertAdjacentElement("afterend", iframe);
+    container.appendChild(iframe);
+    titleEl.insertAdjacentElement("afterend", container);
+
     log("YouTube video embedded:", videoId);
+
+    // Stop observing once successful
+    if (observer) observer.disconnect();
   }
 
   function insertFallback(titleEl, gameTitle) {
@@ -84,16 +103,17 @@
   }
 
   function tryQueries(titleEl, cleanTitle, i = 0) {
-    if (i >= QUERIES.length) {
+    if (i >= CONFIG.queries.length) {
       insertFallback(titleEl, cleanTitle);
       return;
     }
 
-    const query = (QUERIES[i] ? `${cleanTitle} ${QUERIES[i]}` : cleanTitle).trim();
+    const query = (CONFIG.queries[i] ? `${cleanTitle} ${CONFIG.queries[i]}` : cleanTitle).trim();
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 
     doRequest(searchUrl, html => {
-      const match = html.match(/"videoId":"(.*?)"/);
+      // Safer regex: only match inside videoRenderer blocks
+      const match = html.match(/"videoRenderer".*?"videoId":"(.*?)"/);
       if (match && match[1]) {
         embedVideo(match[1], titleEl);
       } else {
