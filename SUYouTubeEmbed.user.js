@@ -1,19 +1,18 @@
 // ==UserScript==
 // @name         SU YouTube Embed
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
-// @version      1.0
-// @description  Embed the top YouTube review video on SteamUnderground game pages
+// @version      1.1
+// @description  Embed the top YouTube review video on SteamUnderground game pages (scrapes search results, no API needed)
 // @match        https://steamunderground.net/*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
-
-
 
 (function () {
   'use strict';
 
   const log = console.log.bind(console);
   const STRIP_WORDS = ["PC Game", "Free Download"];
+  const QUERIES = ["review", "gameplay", "impressions", "first look", "early access", "trailer", "overview", ""];
 
   function cleanGameTitle(rawTitle) {
     let cutoffIndex = rawTitle.length;
@@ -38,8 +37,7 @@
     iframe.height = "315";
     iframe.src = `https://www.youtube.com/embed/${videoId}`;
     iframe.frameBorder = "0";
-    iframe.allow =
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
     iframe.allowFullscreen = true;
     iframe.setAttribute("data-ytreview", "true");
 
@@ -69,27 +67,42 @@
     titleEl.insertAdjacentElement("afterend", link);
   }
 
-  function fetchTopResult(titleEl, cleanTitle) {
-    const query = cleanTitle + " review";
+  function doRequest(url, onSuccess, onError) {
+    if (typeof GM_xmlhttpRequest !== "undefined") {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        onload: res => onSuccess(res.responseText),
+        onerror: onError
+      });
+    } else {
+      fetch(url)
+        .then(r => r.text())
+        .then(onSuccess)
+        .catch(onError);
+    }
+  }
+
+  function tryQueries(titleEl, cleanTitle, i = 0) {
+    if (i >= QUERIES.length) {
+      insertFallback(titleEl, cleanTitle);
+      return;
+    }
+
+    const query = (QUERIES[i] ? `${cleanTitle} ${QUERIES[i]}` : cleanTitle).trim();
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 
-    GM_xmlhttpRequest({
-      method: "GET",
-      url: searchUrl,
-      onload: function (response) {
-        const html = response.responseText;
-        const match = html.match(/"videoId":"(.*?)"/);
-        if (match && match[1]) {
-          embedVideo(match[1], titleEl);
-        } else {
-          log("No video ID found in YouTube search results");
-          insertFallback(titleEl, cleanTitle);
-        }
-      },
-      onerror: function () {
-        log("Failed to fetch YouTube search page");
-        insertFallback(titleEl, cleanTitle);
+    doRequest(searchUrl, html => {
+      const match = html.match(/"videoId":"(.*?)"/);
+      if (match && match[1]) {
+        embedVideo(match[1], titleEl);
+      } else {
+        log("No video found for query:", query);
+        tryQueries(titleEl, cleanTitle, i + 1);
       }
+    }, () => {
+      log("Request failed for query:", query);
+      tryQueries(titleEl, cleanTitle, i + 1);
     });
   }
 
@@ -100,7 +113,7 @@
       return;
     }
     const cleanTitle = cleanGameTitle(titleEl.innerText);
-    fetchTopResult(titleEl, cleanTitle);
+    tryQueries(titleEl, cleanTitle);
   }
 
   window.addEventListener("load", embedReview);
