@@ -2,10 +2,11 @@
 // @name         SU YouTube Embed
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
 // @version      1.0
-// @description  Embed the top YouTube review video on SteamUnderground game pages (scrapes search results, no API needed)
+// @description  Embed the top YouTube review video on SteamUnderground game pages
 // @match        https://steamunderground.net/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
+
 
 
 (function () {
