@@ -1,26 +1,50 @@
-# 🎬 Steam Underground Youtube Review Embedder
+🎬 SUYouTubeEmbed
+SUYouTubeEmbed is a Tampermonkey/Violentmonkey userscript that transforms SteamUnderground game pages into clean, info‑rich dashboards. It automatically embeds a top YouTube review or gameplay video, cleans messy titles, adds quick external links, parses system requirements, and organizes download mirrors into a neat, expandable list.
 
-**SUYouTubeEmbed** is a Chrome/Edge extension that automatically embeds the **top YouTube review video** for any game page on [SteamUnderground](https://steamunderground.net).  
-It scrapes YouTube’s search results directly (no API key required) and injects a responsive player right under the game title. If no video is found, it shows a clear fallback button linking to YouTube search.
+✨ Features
+🧹 Smart title cleaner Removes clutter like “PC Game”, “Free Download”, version tags, and parentheses.
 
----
+🎥 Automatic YouTube embed Scrapes YouTube search results (no API key needed) and embeds the top review/gameplay video inline. ▸ Includes fallback queries (review, gameplay, trailer, etc.) ▸ Shows a clear red “Search YouTube” button if no video is found.
 
-## ✨ Features
-- 🔎 Cleans messy game titles (removes “PC Game”, “Direct Download”, version numbers, etc.)
-- 🎥 Scrapes YouTube search results and embeds the **top video** inline
-- 📺 Responsive iframe player (mobile‑friendly, scales with page width)
-- 🛠️ Extended fallback queries (`review`, `gameplay`, `playtest`, `trailer`, `impressions`, `first look`, `overview`, `early access`)
-- 🚨 Visible fallback button if no video is found:  
-  **“🔎 Search YouTube for <Game Title>”**
-- ⚡ Lightweight, no API quota limits, no external dependencies
+📊 Info card overlay Displays release date, version, and scene group right under the game title.
 
----
+🖥️ System requirements table Parses the requirements block into a clean, two‑column table.
 
-## 🚀 Quick Install
+🔗 Quick external links One‑click buttons for Metacritic, SteamDB, and YouTube search.
 
-Click below to install directly with Tampermonkey or Violentmonkey:
+📥 Download mirrors organizer ▸ Detects links from hosts like DataNodes, Gofile, AkiraBox, MediaFire, Pixeldrain, etc. ▸ Deduplicates and groups by host. ▸ Shows top 3 hosts with 1 mirror each by default. ▸ Extra mirrors hidden behind a “Show all mirrors” toggle.
 
-[![Install Userscript](https://img.shields.io/badge/Install-Userscript-blue)](https://github.com/Callmesnake5561/SUYouTubeEmbed/raw/main/SUYouTubeEmbed.user.js)
+⚡ Lightweight & resilient ▸ No API quotas or external dependencies. ▸ Debounced observer prevents flicker. ▸ Guards ensure video and tables don’t re‑render unnecessarily.
 
-> Requires a userscript manager like [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/).
+🚀 Installation
+Install a userscript manager:
 
+Tampermonkey
+
+Violentmonkey
+
+Click to install the script: Install SUYouTubeEmbed
+
+Visit any SteamUnderground game page — the overlay will appear automatically.
+
+📸 Screenshots (optional)
+Add before/after screenshots here to show the cleaned title, info card, YouTube embed, and download list.
+
+🛠️ Development
+Written in plain JavaScript, no frameworks.
+
+Uses GM_xmlhttpRequest (with fetch fallback) for YouTube scraping.
+
+MutationObserver with debounce ensures compatibility with dynamic pages.
+
+Configurable host priority and link limits in the CONFIG object.
+
+🤝 Contributing
+Pull requests and feature suggestions are welcome! If you find a bug or want a new host supported, open an issue.
+
+📜 License
+MIT License — free to use, modify, and share.
+
+👉 This version highlights all the improvements you’ve coded (download grouping, flicker fix, system requirements parsing) and makes the project look polished and approachable.
+
+Would you like me to also draft a short “Before vs After” GIF demo section for the README so people instantly see the transformation? That tends to boost adoption a lot.
