@@ -448,7 +448,6 @@ async function renderTopGames(container) {
     fillMetadata(card);
     fillRequirements(card);
     fillDownloads(card);
-    fillDownloads(card);
 
 // 🔥 Add Top Steam Games section here
 renderTopGames(card);
