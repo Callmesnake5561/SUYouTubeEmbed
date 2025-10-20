@@ -397,6 +397,44 @@
     });
   }
 
+  async function getTopSteamGames() {
+  const res = await fetch("https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/");
+  const data = await res.json();
+  return data.response.ranks.slice(0, 20); // top 20
+}
+
+function suSearchUrl(gameName) {
+  const query = encodeURIComponent(gameName);
+  return `https://steamunderground.net/?s=${query}`;
+}
+
+async function renderTopGames(container) {
+  const topDiv = document.createElement("div");
+  topDiv.id = "su-topgames";
+  topDiv.style.marginTop = "20px";
+
+  const header = document.createElement("h3");
+  header.textContent = "🔥 Top 20 Steam Games This Month";
+  topDiv.appendChild(header);
+
+  const list = document.createElement("ol");
+  const games = await getTopSteamGames();
+
+  games.forEach(g => {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = suSearchUrl(g.name);
+    a.textContent = g.name;
+    a.target = "_blank";
+    a.style.color = "#4da6ff";
+    li.appendChild(a);
+    list.appendChild(li);
+  });
+
+  topDiv.appendChild(list);
+  container.appendChild(topDiv);
+}
+
   // Main runner
   async function refinePage() {
     const titleEl = document.querySelector("h1");
