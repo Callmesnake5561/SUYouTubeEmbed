@@ -1,4 +1,4 @@
-# 🎬 SUYouTubeEmbed
+# 🎬 Steam Underground Youtube Review Embedder
 
 **SUYouTubeEmbed** is a Chrome/Edge extension that automatically embeds the **top YouTube review video** for any game page on [SteamUnderground](https://steamunderground.net).  
 It scrapes YouTube’s search results directly (no API key required) and injects a responsive player right under the game title. If no video is found, it shows a clear fallback button linking to YouTube search.
