@@ -23,3 +23,4 @@ Click below to install directly with Tampermonkey or Violentmonkey:
 [![Install Userscript](https://img.shields.io/badge/Install-Userscript-blue)](https://github.com/Callmesnake5561/SUYouTubeEmbed/raw/main/SUYouTubeEmbed.user.js)
 
 > Requires a userscript manager like [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/).
+
