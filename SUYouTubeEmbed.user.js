@@ -396,8 +396,8 @@
       tryYTQueries(container, title, i + 1);
     });
   }
-
-  async function getTopSteamGames() {
+  // --- Top Steam Games helpers ---
+async function getTopSteamGames() {
   const res = await fetch("https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/");
   const data = await res.json();
   return data.response.ranks.slice(0, 20); // top 20
