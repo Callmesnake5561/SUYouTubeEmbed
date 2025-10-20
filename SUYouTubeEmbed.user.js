@@ -448,6 +448,13 @@ async function renderTopGames(container) {
     fillMetadata(card);
     fillRequirements(card);
     fillDownloads(card);
+    fillDownloads(card);
+
+// 🔥 Add Top Steam Games section here
+renderTopGames(card);
+
+const cleanTitle = cleanGameTitle(titleEl.innerText);
+tryYTQueries(card, cleanTitle);
 
     const cleanTitle = cleanGameTitle(titleEl.innerText);
     tryYTQueries(card, cleanTitle);
