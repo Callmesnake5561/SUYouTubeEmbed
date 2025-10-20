@@ -1,11 +1,12 @@
 // ==UserScript==
-// @name         Auto YouTube Review Embed (Scraping)
-// @namespace    http://yourscripts.net/
-// @version      3.0
-// @description  Embed top YouTube search result without API
+// @name         SU YouTube Embed
+// @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
+// @version      1.0
+// @description  Embed the top YouTube review video on SteamUnderground game pages (scrapes search results, no API needed)
 // @match        https://steamunderground.net/*
-// @grant        GM_xmlhttpRequest
+// @grant        none
 // ==/UserScript==
+
 
 (function () {
   'use strict';
