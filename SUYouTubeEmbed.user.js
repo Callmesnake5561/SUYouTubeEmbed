@@ -454,9 +454,7 @@ renderTopGames(card);
 
 const cleanTitle = cleanGameTitle(titleEl.innerText);
 tryYTQueries(card, cleanTitle);
-
-    const cleanTitle = cleanGameTitle(titleEl.innerText);
-    tryYTQueries(card, cleanTitle);
+    
   }
 
   // Run at load and re-run on dynamic changes with debounce
