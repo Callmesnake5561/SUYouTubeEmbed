@@ -16,8 +16,6 @@ It scrapes YouTube’s search results directly (no API key required) and injects
 
 ---
 
-## 📦 Installation (Developer Mode)
+## 🚀 Quick Install (Userscript)
 
-1. Clone or download this repository:
-   ```bash
-   git clone https://github.com/Callmesnake5561/SUYouTubeEmbed.git
+[![Install Userscript](https://img.shields.io/badge/Install-Userscript-blue)](https://github.com/Callmesnake5561/SUYouTubeEmbed/raw/main/SUYouTubeEmbed.user.js)
