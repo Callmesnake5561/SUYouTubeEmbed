@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         SU YouTube Embed + Info Card + Quick Links + Downloads
+// @name         SU YouTube Embed + Clean Flex Layout + Tables (Hybrid 3.2)
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
-// @version      3.1
-// @description  Clean overlay for SteamUnderground pages: title, metadata, system requirements, quick links, grouped download mirrors, and YouTube embed (no flicker)
+// @version      3.2
+// @description  Stable overlay: video left, styled tables right; description + screenshots; grouped mirrors; robust observer (no body wipe)
 // @match        https://steamunderground.net/*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -14,52 +14,64 @@
     stripWords: ["PC Game", "Free Download", "Direct Download"],
     ytQueries: ["review", "gameplay", "impressions", "first look", "early access", "trailer", "overview", ""],
     hostPriority: ["datanodes", "torrent", "gofile", "akirabox", "mediafire", "pixeldrain", "megaup", "1fichier", "rapidgator", "hitfile", "nitroflare", "ddl"],
-    primaryHostLimit: 3,   // show up to 3 host groups by default
-    linksPerHostLimit: 1   // show up to 1 mirror per host by default
+    primaryHostLimit: 3,
+    linksPerHostLimit: 1
   };
 
   const log = (...args) => console.log("[SURefine]", ...args);
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const toLower = (s) => (s || "").toLowerCase();
 
-  // Clean the noisy H1 title
   function cleanGameTitle(rawTitle) {
     let t = rawTitle || "";
-    t = t.replace(/\(.*?\)/g, ""); // remove parenthetical tags
+    t = t.replace(/\(.*?\)/g, "");
     CONFIG.stripWords.forEach(word => { t = t.replace(new RegExp(word, "gi"), ""); });
-    t = t.replace(/[-|–|—]\s*free\s*download.*$/i, ""); // trim trailing "Free Download"
+    t = t.replace(/[-|–|—]\s*free\s*download.*$/i, "");
     return t.trim();
   }
 
-  // Build or reuse the overlay card
+  // POLISHED FLEX LAYOUT: video left, tables right, description and screenshots below
   function ensureInfoCard(titleEl) {
     let container = document.querySelector("[data-suinfocard]");
     if (container) return container;
 
     container = document.createElement("div");
     container.setAttribute("data-suinfocard", "true");
-    container.style.border = "2px solid #444";
-    container.style.padding = "15px";
-    container.style.margin = "15px 0";
     container.style.background = "#1c1c1c";
     container.style.color = "#eee";
     container.style.borderRadius = "8px";
     container.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+    container.style.padding = "15px";
+    container.style.margin = "15px 0";
+    container.style.border = "2px solid #444";
 
     const cleanTitle = cleanGameTitle(titleEl.innerText);
     container.innerHTML = `
-      <h2 style="margin-top:0">${cleanTitle}</h2>
-      <div id="su-meta" style="margin:6px 0 10px 0"></div>
-      <div id="su-links" style="margin-top:6px"></div>
-      <div id="su-requirements" style="margin-top:12px"></div>
-      <div id="su-downloads" style="margin-top:12px"></div>
-      <div id="su-video" style="margin-top:12px"></div>
+      <h2 style="margin:0 0 12px 0">${cleanTitle}</h2>
+
+      <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start">
+        <div id="su-video" style="flex:1 1 60%; min-width:320px"></div>
+        <div style="flex:1 1 40%; min-width:280px; display:flex; flex-direction:column; gap:12px">
+          <div id="su-meta"></div>
+          <div id="su-requirements"></div>
+          <div id="su-downloads"></div>
+        </div>
+      </div>
+
+      <div id="su-description" style="margin-top:18px; background:#202020; padding:12px; border-radius:6px"></div>
+
+      <div id="su-screenshots" style="margin-top:18px">
+        <h3 style="margin:0 0 8px 0">📸 Screenshots</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px"></div>
+      </div>
+
+      <div id="su-links" style="margin-top:12px"></div>
     `;
     titleEl.insertAdjacentElement("afterend", container);
     return container;
   }
 
-  // Fill metadata safely
+  // Metadata (stable v3.1 approach)
   function fillMetadata(container) {
     const rawText = document.body.innerText || "";
     const getLine = (label) => {
@@ -74,18 +86,19 @@
     const version = getLine("Game Version");
     const scene = (rawText.match(/(Scene Group|Game Source):\s*([^\n]+)/i) || [])[2] || "Unknown";
 
-    // Guard: avoid unnecessary re-render if unchanged
     const newMeta = `
-      <p style="margin:0"><strong>Release:</strong> ${release}</p>
-      <p style="margin:0"><strong>Version:</strong> ${version}</p>
-      <p style="margin:0"><strong>Scene group:</strong> ${scene}</p>
+      <table style="width:100%; border-collapse:collapse; background:#2a2a2a; border-radius:6px; overflow:hidden; font-size:14px; color:#ddd">
+        <tr><th colspan="2" style="background:#333; color:#fff; text-align:left; padding:8px 10px">📊 Game info</th></tr>
+        <tr><td style="padding:6px 10px; border-top:1px solid #444">Release</td><td style="padding:6px 10px; border-top:1px solid #444">${release}</td></tr>
+        <tr><td style="padding:6px 10px; border-top:1px solid #444">Version</td><td style="padding:6px 10px; border-top:1px solid #444">${version}</td></tr>
+        <tr><td style="padding:6px 10px; border-top:1px solid #444">Scene group</td><td style="padding:6px 10px; border-top:1px solid #444">${scene}</td></tr>
+      </table>
     `;
     if (metaDiv.dataset.hash !== newMeta) {
       metaDiv.innerHTML = newMeta;
       metaDiv.dataset.hash = newMeta;
     }
 
-    // Quick external links
     const linksDiv = container.querySelector("#su-links");
     const linksMarkup = [
       { name: "🔎 Metacritic", url: `https://www.metacritic.com/search/${encodeURIComponent(title)}/results` },
@@ -99,7 +112,7 @@
     }
   }
 
-  // Parse requirements block into a simple table
+  // Requirements (stable v3.1 parser, rendered as styled table)
   function fillRequirements(container) {
     const raw = document.body.innerText || "";
     const match = raw.match(/System requirements([\s\S]*?)(Support the game|Tags|Share on|Screenshots|Download)/i);
@@ -112,12 +125,10 @@
     }
 
     const block = match[1];
-    const lines = block.split("\n")
-      .map(l => l.trim())
-      .filter(l => l && l.includes(":"));
+    const lines = block.split("\n").map(l => l.trim()).filter(l => l && l.includes(":"));
 
     const hash = JSON.stringify(lines);
-    if (reqDiv.dataset.hash === hash) return; // Guard: no re-render if same content
+    if (reqDiv.dataset.hash === hash) return;
     reqDiv.innerHTML = "";
     reqDiv.dataset.hash = hash;
 
@@ -126,56 +137,38 @@
     const table = document.createElement("table");
     table.style.width = "100%";
     table.style.borderCollapse = "collapse";
-    table.style.marginTop = "6px";
+    table.style.background = "#2a2a2a";
+    table.style.borderRadius = "6px";
+    table.style.overflow = "hidden";
+    table.style.fontSize = "14px";
+    table.style.color = "#ddd";
+
     table.innerHTML = `
-      <thead>
-        <tr style="background:#333;color:#fff">
-          <th style="padding:6px;border:1px solid #555;text-align:left">Component</th>
-          <th style="padding:6px;border:1px solid #555;text-align:left">Spec</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
+      <tr><th colspan="2" style="background:#333; color:#fff; text-align:left; padding:8px 10px">💻 System requirements</th></tr>
+      ${lines.map(line => {
+        const idx = line.indexOf(":");
+        const key = line.slice(0, idx).trim();
+        const val = line.slice(idx + 1).trim();
+        return `<tr><td style="padding:6px 10px; border-top:1px solid #444">${key}</td><td style="padding:6px 10px; border-top:1px solid #444">${val}</td></tr>`;
+      }).join("")}
     `;
-    const tbody = table.querySelector("tbody");
-
-    lines.forEach(line => {
-      const idx = line.indexOf(":");
-      if (idx === -1) return;
-      const key = line.slice(0, idx).trim();
-      const val = line.slice(idx + 1).trim();
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td style="padding:6px;border:1px solid #555">${key}</td>
-        <td style="padding:6px;border:1px solid #555">${val}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    const header = document.createElement("h3");
-    header.textContent = "🖥️ System requirements";
-    header.style.margin = "0 0 6px 0";
-    reqDiv.appendChild(header);
     reqDiv.appendChild(table);
   }
 
-  // Smarter, limited, grouped download links extractor
+  // Downloads (stable v3.1, grouped + toggle)
   function fillDownloads(container) {
     const main = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
     const anchors = Array.from(main.querySelectorAll("a[href]"));
-
     const hostRegex = new RegExp(CONFIG.hostPriority.join("|"), "i");
 
-    // Strict host-only filter (no generic "download" text to avoid noise)
     const candidates = anchors.filter(a => {
       const href = toLower(a.href);
       const text = toLower(a.textContent);
       const isHost = hostRegex.test(href) || hostRegex.test(text);
-      // Exclude internal anchors unless they specifically mention "torrent"
       const isInternal = href.startsWith(window.location.origin) && !/torrent/.test(text);
       return isHost && !isInternal;
     });
 
-    // Deduplicate by hostname + pathname
     const unique = [];
     const seen = new Set();
     candidates.forEach(a => {
@@ -187,19 +180,17 @@
           seen.add(key);
           unique.push({ a, hostKey, label: (a.textContent || "").trim() });
         }
-      } catch { /* skip malformed */ }
+      } catch {}
     });
 
-    // Hash to avoid re-render flicker
     const dlDiv = container.querySelector("#su-downloads");
     const hash = JSON.stringify(unique.map(u => u.a.href));
-    if (dlDiv.dataset.hash === hash) return; // Guard: same content, skip
+    if (dlDiv.dataset.hash === hash) return;
     dlDiv.innerHTML = "";
     dlDiv.dataset.hash = hash;
 
     if (!unique.length) return;
 
-    // Sort by host priority, then shorter text first
     unique.sort((x, y) => {
       const px = CONFIG.hostPriority.indexOf(x.hostKey.split(".").shift());
       const py = CONFIG.hostPriority.indexOf(y.hostKey.split(".").shift());
@@ -208,7 +199,6 @@
       return (x.label || "").length - (y.label || "").length;
     });
 
-    // Group by host
     const perHost = new Map();
     unique.forEach(item => {
       const key = CONFIG.hostPriority.find(h => item.hostKey.includes(h)) || item.hostKey;
@@ -246,7 +236,6 @@
 
       const hostBlock = document.createElement("div");
 
-      // Primary mirrors per host
       items.slice(0, CONFIG.linksPerHostLimit).forEach(({ a, label }) => {
         const link = document.createElement("a");
         link.href = a.href;
@@ -259,7 +248,6 @@
         hostBlock.appendChild(link);
       });
 
-      // Overflow mirrors per host
       items.slice(CONFIG.linksPerHostLimit).forEach(({ a, label }) => {
         const link = document.createElement("a");
         link.href = a.href;
@@ -324,11 +312,51 @@
     }
   }
 
-  // YouTube embed helpers
+  // Description (new section using longest non-download paragraph)
+  function fillDescription(container) {
+    const paras = [...document.querySelectorAll("p")];
+    const pick = paras
+      .map(p => (p.innerText || "").trim())
+      .filter(t => t.length > 80 && !/downloads?|requirements?|install|password|changelog/i.test(t))
+      .sort((a,b) => b.length - a.length)[0];
+    const box = container.querySelector("#su-description");
+    box.textContent = pick || "No description available.";
+  }
+
+  // Screenshots grid (new section)
+  function fillScreenshots(container, title) {
+    const slug = toLower(cleanGameTitle(title)).replace(/[^a-z0-9]+/g, "-");
+    const imgs = [...document.querySelectorAll("img")];
+    let shots = imgs
+      .filter(img => {
+        const s = toLower(img.src || "");
+        const alt = toLower(img.alt || "");
+        const inContent = /uploads|wp-content|images|content/.test(s);
+        const matches = s.includes(slug) || alt.includes(slug) || /screenshot|screen|image/.test(alt);
+        return inContent && matches;
+      })
+      .map(img => img.src);
+
+    if (!shots.length) {
+      shots = imgs.filter(img => /uploads|wp-content|images|content/.test(toLower(img.src || ""))).slice(0, 6).map(img => img.src);
+    }
+
+    const grid = container.querySelector("#su-screenshots div");
+    grid.innerHTML = "";
+    shots.forEach(src => {
+      const img = document.createElement("img");
+      img.src = src;
+      img.style.width = "100%";
+      img.style.borderRadius = "6px";
+      img.loading = "lazy";
+      grid.appendChild(img);
+    });
+  }
+
+  // YouTube embed (stable v3.1 with fallback)
   function embedVideo(videoId, container) {
     const slot = container.querySelector("#su-video");
     const existing = slot.querySelector("iframe");
-    // Guard: if the same video is already embedded, do nothing
     if (existing && existing.src.includes(videoId)) return;
 
     slot.innerHTML = "";
@@ -346,7 +374,6 @@
 
   function insertYTSearch(container, title) {
     const slot = container.querySelector("#su-video");
-    // Guard: prevent duplicate fallback button
     if (slot.querySelector("a")) return;
     const a = document.createElement("a");
     a.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(title)}`;
@@ -366,67 +393,51 @@
 
   function httpGet(url, onSuccess, onError) {
     if (typeof GM_xmlhttpRequest !== "undefined") {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url,
-        onload: res => onSuccess(res.responseText),
-        onerror: onError
-      });
+      GM_xmlhttpRequest({ method: "GET", url, onload: res => onSuccess(res.responseText), onerror: onError });
     } else {
       fetch(url).then(r => r.text()).then(onSuccess).catch(onError);
     }
   }
 
   function tryYTQueries(container, title, i = 0) {
-    if (i >= CONFIG.ytQueries.length) {
-      insertYTSearch(container, title);
-      return;
-    }
+    if (i >= CONFIG.ytQueries.length) { insertYTSearch(container, title); return; }
     const q = (CONFIG.ytQueries[i] ? `${title} ${CONFIG.ytQueries[i]}` : title).trim();
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-
     httpGet(url, html => {
       const match = html.match(/"videoRenderer".*?"videoId":"(.*?)"/);
-      if (match && match[1]) {
-        embedVideo(match[1], container);
-      } else {
-        tryYTQueries(container, title, i + 1);
-      }
-    }, () => {
-      tryYTQueries(container, title, i + 1);
-    });
+      if (match && match[1]) { embedVideo(match[1], container); }
+      else { tryYTQueries(container, title, i + 1); }
+    }, () => { tryYTQueries(container, title, i + 1); });
   }
 
-  // Main runner
-  // Main runner
- async function refinePage() {
-  if (document.querySelector("[data-suinfocard]")) return; // already built
+  // Main runner (no body wipe)
+  async function refinePage() {
+    if (document.querySelector("[data-suinfocard]")) return;
 
-  const titleEl = document.querySelector("h1");
-  if (!titleEl) return;
+    const titleEl = document.querySelector("h1");
+    if (!titleEl) return;
 
-  const card = ensureInfoCard(titleEl);
+    const card = ensureInfoCard(titleEl);
+    await sleep(250);
 
-  // Wait for late content to load before parsing
-  await sleep(250);
+    fillMetadata(card);
+    fillRequirements(card);
+    fillDownloads(card);
 
-  fillMetadata(card);
-  fillRequirements(card);
-  fillDownloads(card);
+    const cleanTitle = cleanGameTitle(titleEl.innerText);
+    fillDescription(card);
+    fillScreenshots(card, cleanTitle);
+    tryYTQueries(card, cleanTitle);
+  }
 
-  const cleanTitle = cleanGameTitle(titleEl.innerText);
-  tryYTQueries(card, cleanTitle);
-}
-
-  // Run at load and re-run on dynamic changes with debounce
+  // Observer (stable, narrow scope, debounce)
   window.addEventListener("load", refinePage);
   let debounce;
   const observer = new MutationObserver(() => {
     clearTimeout(debounce);
-    debounce = setTimeout(refinePage, 1500); // slower debounce to avoid flicker
+    debounce = setTimeout(refinePage, 1000);
   });
 
-  // Narrow scope: watch the article/post container (reduces noisy triggers)
   const target = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
   observer.observe(target, { childList: true, subtree: false });
 })();
