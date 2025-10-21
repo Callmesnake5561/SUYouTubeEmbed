@@ -1,4 +1,5 @@
 // ==UserScript==
+// @connect api.steampowered.com
 // @name         SU YouTube Embed + Info Card + Quick Links + Downloads
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
 // @version      3.1
@@ -396,12 +397,19 @@
       tryYTQueries(container, title, i + 1);
     });
   }
-  // --- Top Steam Games helpers ---
+// --- Top Steam Games helpers ---
 async function getTopSteamGames() {
-  const res = await fetch("https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/");
-  const data = await res.json();
-  return data.response.ranks.slice(0, 20); // top 20
+  try {
+    const res = await fetch("https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.response.ranks.slice(0, 20); // top 20
+  } catch (err) {
+    console.error("Top Steam Games fetch failed:", err);
+    return []; // fallback to empty list
+  }
 }
+
 
 function suSearchUrl(gameName) {
   const query = encodeURIComponent(gameName);
