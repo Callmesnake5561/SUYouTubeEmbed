@@ -1,5 +1,6 @@
-// ==UserScript==
 // @connect api.steampowered.com
+
+// ==UserScript==
 // @name         SU YouTube Embed + Info Card + Quick Links + Downloads
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
 // @version      3.1
