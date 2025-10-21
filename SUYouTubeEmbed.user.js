@@ -1,480 +1,171 @@
-// @connect api.steampowered.com
-
 // ==UserScript==
-// @name         SU YouTube Embed + Info Card + Quick Links + Downloads
-// @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
-// @version      3.1
-// @description  Clean overlay for SteamUnderground pages: title, metadata, system requirements, quick links, grouped download mirrors, and YouTube embed (no flicker)
+// @name         SU YouTube Embed + Clean Info Card
+// @namespace    SUYouTubeEmbed
+// @version      4.0
+// @description  Rebuild SU game pages with a clean info card, YouTube trailer + description
+// @author       Brandon
 // @match        https://steamunderground.net/*
-// @grant        GM_xmlhttpRequest
+// @grant        none
 // ==/UserScript==
 
-(function () {
+(function() {
   'use strict';
 
-  const CONFIG = {
-    stripWords: ["PC Game", "Free Download", "Direct Download"],
-    ytQueries: ["review", "gameplay", "impressions", "first look", "early access", "trailer", "overview", ""],
-    hostPriority: ["datanodes", "torrent", "gofile", "akirabox", "mediafire", "pixeldrain", "megaup", "1fichier", "rapidgator", "hitfile", "nitroflare", "ddl"],
-    primaryHostLimit: 3,   // show up to 3 host groups by default
-    linksPerHostLimit: 1   // show up to 1 mirror per host by default
-  };
+  // --- Utility ---
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  const log = (...args) => console.log("[SURefine]", ...args);
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const toLower = (s) => (s || "").toLowerCase();
-
-  // Clean the noisy H1 title
-  function cleanGameTitle(rawTitle) {
-    let t = rawTitle || "";
-    t = t.replace(/\(.*?\)/g, ""); // remove parenthetical tags
-    CONFIG.stripWords.forEach(word => { t = t.replace(new RegExp(word, "gi"), ""); });
-    t = t.replace(/[-|–|—]\s*free\s*download.*$/i, ""); // trim trailing "Free Download"
-    return t.trim();
+  // --- Remove everything after Game NFO ---
+  function removeAfterGameNFO() {
+    const nfoLink = [...document.querySelectorAll("a")]
+      .find(a => a.textContent.toLowerCase().includes("game nfo"));
+    if (nfoLink) {
+      let el = nfoLink.parentElement.nextElementSibling;
+      while (el) {
+        const next = el.nextElementSibling;
+        el.remove();
+        el = next;
+      }
+    }
   }
 
-  // Build or reuse the overlay card
+  // --- Extract description ---
+  function getGameDescription() {
+    const article = document.querySelector("article, .entry-content, .post-content");
+    if (!article) return "";
+    const paras = [...article.querySelectorAll("p")];
+    const desc = paras
+      .map(p => p.innerText.trim())
+      .filter(t => t.length > 50 && !t.toLowerCase().includes("download"))[0];
+    return desc || "";
+  }
+
+  // --- Info Card container ---
   function ensureInfoCard(titleEl) {
-    let container = document.querySelector("[data-suinfocard]");
-    if (container) return container;
-
-    container = document.createElement("div");
-    container.setAttribute("data-suinfocard", "true");
-    container.style.border = "2px solid #444";
-    container.style.padding = "15px";
-    container.style.margin = "15px 0";
-    container.style.background = "#1c1c1c";
-    container.style.color = "#eee";
-    container.style.borderRadius = "8px";
-    container.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-
-    const cleanTitle = cleanGameTitle(titleEl.innerText);
-    container.innerHTML = `
-      <h2 style="margin-top:0">${cleanTitle}</h2>
-      <div id="su-meta" style="margin:6px 0 10px 0"></div>
-      <div id="su-links" style="margin-top:6px"></div>
-      <div id="su-requirements" style="margin-top:12px"></div>
-      <div id="su-downloads" style="margin-top:12px"></div>
-      <div id="su-video" style="margin-top:12px"></div>
-    `;
-    titleEl.insertAdjacentElement("afterend", container);
-    return container;
+    let card = document.querySelector("#su-info-card");
+    if (!card) {
+      card = document.createElement("div");
+      card.id = "su-info-card";
+      card.style.background = "#1b1b1b";
+      card.style.padding = "20px";
+      card.style.marginTop = "20px";
+      card.style.borderRadius = "8px";
+      card.style.color = "#ddd";
+      card.style.fontFamily = "Segoe UI, sans-serif";
+      card.style.fontSize = "14px";
+      titleEl.insertAdjacentElement("afterend", card);
+    }
+    return card;
   }
 
-  // Fill metadata safely
-  function fillMetadata(container) {
-    const rawText = document.body.innerText || "";
-    const getLine = (label) => {
-      const re = new RegExp(`${label}:\\s*([^\\n]+)`, "i");
-      const m = rawText.match(re);
-      return m ? m[1].trim() : "Unknown";
-    };
-    const metaDiv = container.querySelector("#su-meta");
-    const title = container.querySelector("h2").textContent;
-
-    const release = getLine("Release Date");
-    const version = getLine("Game Version");
-    const scene = (rawText.match(/(Scene Group|Game Source):\s*([^\n]+)/i) || [])[2] || "Unknown";
-
-    // Guard: avoid unnecessary re-render if unchanged
-    const newMeta = `
-      <p style="margin:0"><strong>Release:</strong> ${release}</p>
-      <p style="margin:0"><strong>Version:</strong> ${version}</p>
-      <p style="margin:0"><strong>Scene group:</strong> ${scene}</p>
-    `;
-    if (metaDiv.dataset.hash !== newMeta) {
-      metaDiv.innerHTML = newMeta;
-      metaDiv.dataset.hash = newMeta;
-    }
-
-    // Quick external links
-    const linksDiv = container.querySelector("#su-links");
-    const linksMarkup = [
-      { name: "🔎 Metacritic", url: `https://www.metacritic.com/search/${encodeURIComponent(title)}/results` },
-      { name: "🔎 SteamDB",    url: `https://steamdb.info/search/?a=app&q=${encodeURIComponent(title)}` },
-      { name: "🔎 YouTube",    url: `https://www.youtube.com/results?search_query=${encodeURIComponent(title)}` }
-    ].map(l => `<a href="${l.url}" target="_blank" style="margin-right:8px;padding:6px 10px;background:#444;color:#fff;text-decoration:none;border-radius:4px;font-size:14px">${l.name}</a>`).join("");
-
-    if (linksDiv.dataset.hash !== linksMarkup) {
-      linksDiv.innerHTML = linksMarkup;
-      linksDiv.dataset.hash = linksMarkup;
-    }
-  }
-
-  // Parse requirements block into a simple table
-  function fillRequirements(container) {
-    const raw = document.body.innerText || "";
-    const match = raw.match(/System requirements([\s\S]*?)(Support the game|Tags|Share on|Screenshots|Download)/i);
-    const reqDiv = container.querySelector("#su-requirements");
-
-    if (!match) {
-      reqDiv.innerHTML = "";
-      reqDiv.dataset.hash = "";
-      return;
-    }
-
-    const block = match[1];
-    const lines = block.split("\n")
-      .map(l => l.trim())
-      .filter(l => l && l.includes(":"));
-
-    const hash = JSON.stringify(lines);
-    if (reqDiv.dataset.hash === hash) return; // Guard: no re-render if same content
-    reqDiv.innerHTML = "";
-    reqDiv.dataset.hash = hash;
-
+  // --- Fill metadata ---
+  function fillMetadata(card) {
+    const meta = document.querySelector(".entry-content");
+    if (!meta) return;
+    const lines = [...meta.querySelectorAll("p, li")]
+      .map(el => el.innerText.trim())
+      .filter(t => t && t.includes(":"));
     if (!lines.length) return;
 
-    const table = document.createElement("table");
-    table.style.width = "100%";
-    table.style.borderCollapse = "collapse";
-    table.style.marginTop = "6px";
-    table.innerHTML = `
-      <thead>
-        <tr style="background:#333;color:#fff">
-          <th style="padding:6px;border:1px solid #555;text-align:left">Component</th>
-          <th style="padding:6px;border:1px solid #555;text-align:left">Spec</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    `;
-    const tbody = table.querySelector("tbody");
+    const block = document.createElement("div");
+    block.style.marginBottom = "15px";
+    block.innerHTML = "<h3 style='margin:0 0 10px;color:#fff;'>📋 Game Info</h3>";
 
     lines.forEach(line => {
-      const idx = line.indexOf(":");
-      if (idx === -1) return;
-      const key = line.slice(0, idx).trim();
-      const val = line.slice(idx + 1).trim();
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td style="padding:6px;border:1px solid #555">${key}</td>
-        <td style="padding:6px;border:1px solid #555">${val}</td>
-      `;
-      tbody.appendChild(tr);
+      const div = document.createElement("div");
+      div.textContent = line;
+      div.style.marginBottom = "4px";
+      block.appendChild(div);
     });
 
-    const header = document.createElement("h3");
-    header.textContent = "🖥️ System requirements";
-    header.style.margin = "0 0 6px 0";
-    reqDiv.appendChild(header);
-    reqDiv.appendChild(table);
+    card.appendChild(block);
   }
 
-  // Smarter, limited, grouped download links extractor
-  function fillDownloads(container) {
-    const main = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
-    const anchors = Array.from(main.querySelectorAll("a[href]"));
+  // --- Fill requirements ---
+  function fillRequirements(card) {
+    const reqHeader = [...document.querySelectorAll("h2,h3,h4")]
+      .find(h => h.innerText.toLowerCase().includes("system requirements"));
+    if (!reqHeader) return;
 
-    const hostRegex = new RegExp(CONFIG.hostPriority.join("|"), "i");
+    const reqBlock = document.createElement("div");
+    reqBlock.style.marginBottom = "15px";
+    reqBlock.innerHTML = "<h3 style='margin:0 0 10px;color:#fff;'>💻 System Requirements</h3>";
 
-    // Strict host-only filter (no generic "download" text to avoid noise)
-    const candidates = anchors.filter(a => {
-      const href = toLower(a.href);
-      const text = toLower(a.textContent);
-      const isHost = hostRegex.test(href) || hostRegex.test(text);
-      // Exclude internal anchors unless they specifically mention "torrent"
-      const isInternal = href.startsWith(window.location.origin) && !/torrent/.test(text);
-      return isHost && !isInternal;
-    });
-
-    // Deduplicate by hostname + pathname
-    const unique = [];
-    const seen = new Set();
-    candidates.forEach(a => {
-      try {
-        const u = new URL(a.href);
-        const hostKey = (u.hostname || "").toLowerCase().replace(/^www\./, "");
-        const key = `${hostKey}${u.pathname}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push({ a, hostKey, label: (a.textContent || "").trim() });
-        }
-      } catch { /* skip malformed */ }
-    });
-
-    // Hash to avoid re-render flicker
-    const dlDiv = container.querySelector("#su-downloads");
-    const hash = JSON.stringify(unique.map(u => u.a.href));
-    if (dlDiv.dataset.hash === hash) return; // Guard: same content, skip
-    dlDiv.innerHTML = "";
-    dlDiv.dataset.hash = hash;
-
-    if (!unique.length) return;
-
-    // Sort by host priority, then shorter text first
-    unique.sort((x, y) => {
-      const px = CONFIG.hostPriority.indexOf(x.hostKey.split(".").shift());
-      const py = CONFIG.hostPriority.indexOf(y.hostKey.split(".").shift());
-      const byHost = (px === -1 ? 999 : px) - (py === -1 ? 999 : py);
-      if (byHost !== 0) return byHost;
-      return (x.label || "").length - (y.label || "").length;
-    });
-
-    // Group by host
-    const perHost = new Map();
-    unique.forEach(item => {
-      const key = CONFIG.hostPriority.find(h => item.hostKey.includes(h)) || item.hostKey;
-      if (!perHost.has(key)) perHost.set(key, []);
-      perHost.get(key).push(item);
-    });
-
-    const header = document.createElement("h3");
-    header.textContent = "📥 Download mirrors";
-    header.style.margin = "0 0 6px 0";
-    dlDiv.appendChild(header);
-
-    const primaryList = document.createElement("div");
-    primaryList.style.display = "grid";
-    primaryList.style.gridTemplateColumns = "1fr";
-    primaryList.style.gap = "6px";
-    dlDiv.appendChild(primaryList);
-
-    const overflowList = document.createElement("div");
-    overflowList.style.display = "none";
-    overflowList.style.marginTop = "8px";
-    dlDiv.appendChild(overflowList);
-
-    let shownHosts = 0;
-    const overflowItems = [];
-
-    for (const host of CONFIG.hostPriority) {
-      if (!perHost.has(host)) continue;
-      const items = perHost.get(host);
-
-      const hostHeader = document.createElement("div");
-      hostHeader.textContent = host.charAt(0).toUpperCase() + host.slice(1);
-      hostHeader.style.fontWeight = "700";
-      hostHeader.style.marginTop = "6px";
-
-      const hostBlock = document.createElement("div");
-
-      // Primary mirrors per host
-      items.slice(0, CONFIG.linksPerHostLimit).forEach(({ a, label }) => {
-        const link = document.createElement("a");
-        link.href = a.href;
-        link.textContent = label || a.href;
-        link.target = "_blank";
-        link.style.display = "block";
-        link.style.color = "#4da6ff";
-        link.style.fontWeight = "600";
-        link.style.textDecoration = "none";
-        hostBlock.appendChild(link);
-      });
-
-      // Overflow mirrors per host
-      items.slice(CONFIG.linksPerHostLimit).forEach(({ a, label }) => {
-        const link = document.createElement("a");
-        link.href = a.href;
-        link.textContent = label || a.href;
-        link.target = "_blank";
-        link.style.display = "block";
-        link.style.color = "#8fbfff";
-        link.style.textDecoration = "none";
-        overflowItems.push({ host, header: hostHeader, link });
-      });
-
-      if (shownHosts < CONFIG.primaryHostLimit) {
-        primaryList.appendChild(hostHeader);
-        primaryList.appendChild(hostBlock);
-        shownHosts++;
-      } else {
-        overflowItems.push({ host, header: hostHeader, link: hostBlock });
-      }
+    let el = reqHeader.nextElementSibling;
+    while (el && el.tagName.toLowerCase() !== "h2") {
+      const clone = el.cloneNode(true);
+      clone.style.marginBottom = "4px";
+      reqBlock.appendChild(clone);
+      el = el.nextElementSibling;
     }
 
-    if (overflowItems.length > 0) {
-      const toggle = document.createElement("button");
-      toggle.textContent = "Show all mirrors";
-      toggle.style.marginTop = "10px";
-      toggle.style.padding = "6px 10px";
-      toggle.style.background = "#444";
-      toggle.style.color = "#fff";
-      toggle.style.border = "none";
-      toggle.style.borderRadius = "4px";
-      toggle.style.cursor = "pointer";
-
-      let expanded = false;
-      toggle.addEventListener("click", () => {
-        expanded = !expanded;
-        overflowList.style.display = expanded ? "block" : "none";
-        toggle.textContent = expanded ? "Hide extra mirrors" : "Show all mirrors";
-      });
-
-      dlDiv.appendChild(toggle);
-
-      const grouped = new Map();
-      overflowItems.forEach(item => {
-        if (!grouped.has(item.host)) {
-          grouped.set(item.host, { header: item.header.cloneNode(true), block: document.createElement("div") });
-        }
-        const pack = grouped.get(item.host);
-        pack.block.appendChild(item.link instanceof HTMLElement ? item.link : (() => {
-          const l = document.createElement("a");
-          l.href = item.link.href;
-          l.textContent = item.link.textContent;
-          l.target = "_blank";
-          l.style.display = "block";
-          l.style.color = "#8fbfff";
-          return l;
-        })());
-      });
-
-      grouped.forEach(({ header, block }) => {
-        overflowList.appendChild(header);
-        overflowList.appendChild(block);
-      });
-    }
+    card.appendChild(reqBlock);
   }
 
-  // YouTube embed helpers
-  function embedVideo(videoId, container) {
-    const slot = container.querySelector("#su-video");
-    const existing = slot.querySelector("iframe");
-    // Guard: if the same video is already embedded, do nothing
-    if (existing && existing.src.includes(videoId)) return;
+  // --- Build fancy layout: video + description ---
+  function buildFancyLayout(container, videoId) {
+    const wrapper = document.createElement("div");
+    wrapper.style.display = "flex";
+    wrapper.style.gap = "20px";
+    wrapper.style.marginTop = "20px";
+    wrapper.style.alignItems = "flex-start";
 
-    slot.innerHTML = "";
+    // Video
     const iframe = document.createElement("iframe");
+    iframe.width = "560";
+    iframe.height = "315";
     iframe.src = `https://www.youtube.com/embed/${videoId}`;
-    iframe.style.width = "100%";
-    iframe.style.maxWidth = "640px";
-    iframe.style.aspectRatio = "16/9";
     iframe.frameBorder = "0";
-    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
     iframe.allowFullscreen = true;
-    slot.appendChild(iframe);
-    log("Embedded video:", videoId);
+    iframe.style.flex = "1";
+    wrapper.appendChild(iframe);
+
+    // Description
+    const descDiv = document.createElement("div");
+    descDiv.style.flex = "1";
+    descDiv.style.background = "#2a2a2a";
+    descDiv.style.padding = "15px";
+    descDiv.style.borderRadius = "6px";
+    descDiv.style.color = "#ddd";
+    descDiv.style.fontSize = "14px";
+    descDiv.style.lineHeight = "1.6";
+    descDiv.textContent = getGameDescription() || "No description available.";
+    wrapper.appendChild(descDiv);
+
+    container.appendChild(wrapper);
   }
 
-  function insertYTSearch(container, title) {
-    const slot = container.querySelector("#su-video");
-    // Guard: prevent duplicate fallback button
-    if (slot.querySelector("a")) return;
-    const a = document.createElement("a");
-    a.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(title)}`;
-    a.textContent = `🔎 Search YouTube for ${title}`;
-    a.target = "_blank";
-    a.style.display = "inline-block";
-    a.style.marginTop = "6px";
-    a.style.padding = "8px 12px";
-    a.style.backgroundColor = "#c4302b";
-    a.style.color = "#fff";
-    a.style.fontWeight = "bold";
-    a.style.textDecoration = "none";
-    a.style.borderRadius = "5px";
-    slot.innerHTML = "";
-    slot.appendChild(a);
+  // --- YouTube search (simple) ---
+  async function tryYTQueries(card, title, callback) {
+    const query = encodeURIComponent(`${title} trailer`);
+    const url = `https://www.youtube.com/results?search_query=${query}`;
+    // NOTE: Without API key, we can’t fetch directly due to CORS.
+    // For now, fallback to embedding a search link.
+    const block = document.createElement("div");
+    block.style.marginTop = "20px";
+    block.innerHTML = `<a href="${url}" target="_blank" style="color:#4da6ff;">🔗 Watch trailer on YouTube</a>`;
+    card.appendChild(block);
+
+    // If you have a way to resolve videoId, call:
+    // callback(card, videoId);
   }
 
-  function httpGet(url, onSuccess, onError) {
-    if (typeof GM_xmlhttpRequest !== "undefined") {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url,
-        onload: res => onSuccess(res.responseText),
-        onerror: onError
-      });
-    } else {
-      fetch(url).then(r => r.text()).then(onSuccess).catch(onError);
-    }
-  }
-
-  function tryYTQueries(container, title, i = 0) {
-    if (i >= CONFIG.ytQueries.length) {
-      insertYTSearch(container, title);
-      return;
-    }
-    const q = (CONFIG.ytQueries[i] ? `${title} ${CONFIG.ytQueries[i]}` : title).trim();
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-
-    httpGet(url, html => {
-      const match = html.match(/"videoRenderer".*?"videoId":"(.*?)"/);
-      if (match && match[1]) {
-        embedVideo(match[1], container);
-      } else {
-        tryYTQueries(container, title, i + 1);
-      }
-    }, () => {
-      tryYTQueries(container, title, i + 1);
-    });
-  }
-// --- Top Steam Games helpers ---
-async function getTopSteamGames() {
-  try {
-    const res = await fetch("https://api.steampowered.com/ISteamChartsService/GetMostPlayedGames/v1/");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data.response.ranks.slice(0, 20); // top 20
-  } catch (err) {
-    console.error("Top Steam Games fetch failed:", err);
-    return []; // fallback to empty list
-  }
-}
-
-
-function suSearchUrl(gameName) {
-  const query = encodeURIComponent(gameName);
-  return `https://steamunderground.net/?s=${query}`;
-}
-
-async function renderTopGames(container) {
-  const topDiv = document.createElement("div");
-  topDiv.id = "su-topgames";
-  topDiv.style.marginTop = "20px";
-
-  const header = document.createElement("h3");
-  header.textContent = "🔥 Top 20 Steam Games This Month";
-  topDiv.appendChild(header);
-
-  const list = document.createElement("ol");
-  const games = await getTopSteamGames();
-
-  games.forEach(g => {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = suSearchUrl(g.name);
-    a.textContent = g.name;
-    a.target = "_blank";
-    a.style.color = "#4da6ff";
-    li.appendChild(a);
-    list.appendChild(li);
-  });
-
-  topDiv.appendChild(list);
-  container.appendChild(topDiv);
-}
-
-  // Main runner
+  // --- Main refine ---
   async function refinePage() {
     const titleEl = document.querySelector("h1");
     if (!titleEl) return;
 
-    const card = ensureInfoCard(titleEl);
+    removeAfterGameNFO();
 
-    // Wait for late content to load before parsing
+    const card = ensureInfoCard(titleEl);
     await sleep(250);
 
     fillMetadata(card);
     fillRequirements(card);
-    fillDownloads(card);
 
-// 🔥 Add Top Steam Games section here
-renderTopGames(card);
-
-const cleanTitle = cleanGameTitle(titleEl.innerText);
-tryYTQueries(card, cleanTitle);
-    
+    const cleanTitle = titleEl.innerText.replace(/Free Download.*$/i, "").trim();
+    tryYTQueries(card, cleanTitle, buildFancyLayout);
   }
 
-  // Run at load and re-run on dynamic changes with debounce
+  // --- Run ---
   window.addEventListener("load", refinePage);
-  let debounce;
-  const observer = new MutationObserver(() => {
-    clearTimeout(debounce);
-    debounce = setTimeout(refinePage, 1500); // slower debounce to avoid flicker
-  });
-
-  // Narrow scope: watch the article/post container (reduces noisy triggers)
-  const target = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
-  observer.observe(target, { childList: true, subtree: false });
 })();
