@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         SU YouTube Embed + Clean Info Card
-// @namespace    SUYouTubeEmbed
-// @version      4.0
-// @description  Rebuild SU game pages with a clean info card, YouTube trailer + description
+// @name         SU Clean Game Page Rebuild
+// @namespace    SURebuild
+// @version      1.0
+// @description  Replace SU game pages with a clean layout: title, trailer, description, screenshots, downloads, and Disqus only
 // @author       Brandon
 // @match        https://steamunderground.net/*
 // @grant        none
@@ -14,158 +14,152 @@
   // --- Utility ---
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // --- Remove everything after Game NFO ---
-  function removeAfterGameNFO() {
-    const nfoLink = [...document.querySelectorAll("a")]
-      .find(a => a.textContent.toLowerCase().includes("game nfo"));
-    if (nfoLink) {
-      let el = nfoLink.parentElement.nextElementSibling;
-      while (el) {
-        const next = el.nextElementSibling;
-        el.remove();
-        el = next;
-      }
-    }
-  }
-
-  // --- Extract description ---
-  function getGameDescription() {
+  // --- Scrape description ---
+  function scrapeDescription() {
     const article = document.querySelector("article, .entry-content, .post-content");
     if (!article) return "";
     const paras = [...article.querySelectorAll("p")];
-    const desc = paras
-      .map(p => p.innerText.trim())
-      .filter(t => t.length > 50 && !t.toLowerCase().includes("download"))[0];
-    return desc || "";
+    return paras.map(p => p.innerText.trim())
+                .filter(t => t.length > 50 && !t.toLowerCase().includes("download"))[0] || "";
   }
 
-  // --- Info Card container ---
-  function ensureInfoCard(titleEl) {
-    let card = document.querySelector("#su-info-card");
-    if (!card) {
-      card = document.createElement("div");
-      card.id = "su-info-card";
-      card.style.background = "#1b1b1b";
-      card.style.padding = "20px";
-      card.style.marginTop = "20px";
-      card.style.borderRadius = "8px";
-      card.style.color = "#ddd";
-      card.style.fontFamily = "Segoe UI, sans-serif";
-      card.style.fontSize = "14px";
-      titleEl.insertAdjacentElement("afterend", card);
+  // --- Scrape screenshots ---
+  function scrapeScreenshots() {
+    return [...document.querySelectorAll("img")]
+      .filter(img => img.src && !img.src.includes("logo") && !img.src.includes("icon"))
+      .map(img => img.src);
+  }
+
+  // --- Scrape downloads ---
+  function collectDownloadLinks() {
+    const links = [...document.querySelectorAll("a[href*='download']")];
+    return links.map(a => ({
+      text: a.textContent.trim() || a.href,
+      href: a.href
+    }));
+  }
+
+  // --- Clear page but keep Disqus ---
+  function clearPageButKeepDisqus() {
+    const disqus = document.querySelector("#disqus_thread");
+    document.body.innerHTML = "";
+    if (disqus) document.body.appendChild(disqus);
+  }
+
+  // --- Fetch YouTube trailer ID ---
+  async function fetchYouTubeTrailerId(query) {
+    try {
+      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + " trailer")}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const match = text.match(/"videoId":"(.*?)"/);
+      return match ? match[1] : null;
+    } catch (err) {
+      console.error("YouTube fetch failed:", err);
+      return null;
     }
-    return card;
   }
 
-  // --- Fill metadata ---
-  function fillMetadata(card) {
-    const meta = document.querySelector(".entry-content");
-    if (!meta) return;
-    const lines = [...meta.querySelectorAll("p, li")]
-      .map(el => el.innerText.trim())
-      .filter(t => t && t.includes(":"));
-    if (!lines.length) return;
+  // --- Build clean layout ---
+  function buildCleanLayout(title, desc, screenshots, downloads, videoId) {
+    const container = document.createElement("div");
+    container.style.maxWidth = "1000px";
+    container.style.margin = "20px auto";
+    container.style.fontFamily = "Segoe UI, sans-serif";
+    container.style.color = "#ddd";
 
-    const block = document.createElement("div");
-    block.style.marginBottom = "15px";
-    block.innerHTML = "<h3 style='margin:0 0 10px;color:#fff;'>📋 Game Info</h3>";
+    // Title
+    const h1 = document.createElement("h1");
+    h1.textContent = title;
+    h1.style.color = "#fff";
+    container.appendChild(h1);
 
-    lines.forEach(line => {
-      const div = document.createElement("div");
-      div.textContent = line;
-      div.style.marginBottom = "4px";
-      block.appendChild(div);
-    });
+    // Video + Description
+    const flex = document.createElement("div");
+    flex.style.display = "flex";
+    flex.style.gap = "20px";
+    flex.style.margin = "20px 0";
 
-    card.appendChild(block);
-  }
-
-  // --- Fill requirements ---
-  function fillRequirements(card) {
-    const reqHeader = [...document.querySelectorAll("h2,h3,h4")]
-      .find(h => h.innerText.toLowerCase().includes("system requirements"));
-    if (!reqHeader) return;
-
-    const reqBlock = document.createElement("div");
-    reqBlock.style.marginBottom = "15px";
-    reqBlock.innerHTML = "<h3 style='margin:0 0 10px;color:#fff;'>💻 System Requirements</h3>";
-
-    let el = reqHeader.nextElementSibling;
-    while (el && el.tagName.toLowerCase() !== "h2") {
-      const clone = el.cloneNode(true);
-      clone.style.marginBottom = "4px";
-      reqBlock.appendChild(clone);
-      el = el.nextElementSibling;
+    if (videoId) {
+      const iframe = document.createElement("iframe");
+      iframe.width = "560";
+      iframe.height = "315";
+      iframe.src = `https://www.youtube.com/embed/${videoId}`;
+      iframe.frameBorder = "0";
+      iframe.allowFullscreen = true;
+      iframe.style.flex = "1";
+      flex.appendChild(iframe);
     }
 
-    card.appendChild(reqBlock);
-  }
-
-  // --- Build fancy layout: video + description ---
-  function buildFancyLayout(container, videoId) {
-    const wrapper = document.createElement("div");
-    wrapper.style.display = "flex";
-    wrapper.style.gap = "20px";
-    wrapper.style.marginTop = "20px";
-    wrapper.style.alignItems = "flex-start";
-
-    // Video
-    const iframe = document.createElement("iframe");
-    iframe.width = "560";
-    iframe.height = "315";
-    iframe.src = `https://www.youtube.com/embed/${videoId}`;
-    iframe.frameBorder = "0";
-    iframe.allowFullscreen = true;
-    iframe.style.flex = "1";
-    wrapper.appendChild(iframe);
-
-    // Description
     const descDiv = document.createElement("div");
     descDiv.style.flex = "1";
     descDiv.style.background = "#2a2a2a";
     descDiv.style.padding = "15px";
     descDiv.style.borderRadius = "6px";
-    descDiv.style.color = "#ddd";
-    descDiv.style.fontSize = "14px";
-    descDiv.style.lineHeight = "1.6";
-    descDiv.textContent = getGameDescription() || "No description available.";
-    wrapper.appendChild(descDiv);
+    descDiv.textContent = desc || "No description available.";
+    flex.appendChild(descDiv);
 
-    container.appendChild(wrapper);
+    container.appendChild(flex);
+
+    // Screenshots
+    if (screenshots.length) {
+      const ssBlock = document.createElement("div");
+      ssBlock.innerHTML = "<h3 style='color:#fff;'>📸 Screenshots</h3>";
+      const grid = document.createElement("div");
+      grid.style.display = "grid";
+      grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(200px, 1fr))";
+      grid.style.gap = "10px";
+      screenshots.forEach(src => {
+        const img = document.createElement("img");
+        img.src = src;
+        img.style.width = "100%";
+        img.style.borderRadius = "4px";
+        grid.appendChild(img);
+      });
+      ssBlock.appendChild(grid);
+      container.appendChild(ssBlock);
+    }
+
+    // Downloads
+    if (downloads.length) {
+      const dlBlock = document.createElement("div");
+      dlBlock.innerHTML = "<h3 style='color:#fff;'>⬇️ Downloads</h3>";
+      const list = document.createElement("ul");
+      list.style.listStyle = "none";
+      list.style.padding = "0";
+      downloads.forEach(d => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = d.href;
+        a.textContent = d.text;
+        a.target = "_blank";
+        a.style.color = "#4da6ff";
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+      dlBlock.appendChild(list);
+      container.appendChild(dlBlock);
+    }
+
+    document.body.insertBefore(container, document.querySelector("#disqus_thread"));
   }
 
-  // --- YouTube search (simple) ---
-  async function tryYTQueries(card, title, callback) {
-    const query = encodeURIComponent(`${title} trailer`);
-    const url = `https://www.youtube.com/results?search_query=${query}`;
-    // NOTE: Without API key, we can’t fetch directly due to CORS.
-    // For now, fallback to embedding a search link.
-    const block = document.createElement("div");
-    block.style.marginTop = "20px";
-    block.innerHTML = `<a href="${url}" target="_blank" style="color:#4da6ff;">🔗 Watch trailer on YouTube</a>`;
-    card.appendChild(block);
-
-    // If you have a way to resolve videoId, call:
-    // callback(card, videoId);
-  }
-
-  // --- Main refine ---
+  // --- Main ---
   async function refinePage() {
     const titleEl = document.querySelector("h1");
     if (!titleEl) return;
 
-    removeAfterGameNFO();
+    const desc = scrapeDescription();
+    const screenshots = scrapeScreenshots();
+    const downloads = collectDownloadLinks();
 
-    const card = ensureInfoCard(titleEl);
-    await sleep(250);
+    clearPageButKeepDisqus();
 
-    fillMetadata(card);
-    fillRequirements(card);
+    const videoId = await fetchYouTubeTrailerId(titleEl.innerText.replace(/Free Download.*$/i, "").trim())
+                    || null;
 
-    const cleanTitle = titleEl.innerText.replace(/Free Download.*$/i, "").trim();
-    tryYTQueries(card, cleanTitle, buildFancyLayout);
+    buildCleanLayout(titleEl.innerText, desc, screenshots, downloads, videoId);
   }
 
-  // --- Run ---
   window.addEventListener("load", refinePage);
 })();
