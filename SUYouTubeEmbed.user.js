@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SU Clean Game Page Rebuild
 // @namespace    SURebuild
-// @version      2.1
+// @version      2.2
 // @description  Clean SU game pages: title, trailer, description, screenshots, downloads, and Disqus only
 // @match        https://steamunderground.net/*
 // @grant        none
@@ -13,20 +13,6 @@
   // --- Utility helpers ---
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  function ensureInfoCard(titleEl) {
-    let card = document.querySelector("#su-clean-card");
-    if (card) return card;
-
-    card = document.createElement("div");
-    card.id = "su-clean-card";
-    card.style.background = "#1e1e1e";
-    card.style.padding = "20px";
-    card.style.margin = "20px auto";
-    card.style.borderRadius = "8px";
-    titleEl.insertAdjacentElement("afterend", card);
-    return card;
-  }
-
   // --- Scrapers ---
   function scrapeDescription() {
     const article = document.querySelector("article, .post, .entry-content, .post-content");
@@ -36,19 +22,24 @@
                 .filter(t => t.length > 50 && !t.toLowerCase().includes("download"))[0] || "";
   }
 
+  function slugifyTitle(title) {
+    return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  }
+
   function scrapeScreenshots(title) {
     const article = document.querySelector("article, .post, .entry-content, .post-content");
     if (!article) return [];
-    const slug = title.split(" ")[0]; // crude filter by first word
+    const slug = slugifyTitle(title);
     return [...article.querySelectorAll("img")]
       .map(img => img.src)
-      .filter(src => src && src.toLowerCase().includes(slug.toLowerCase()));
+      .filter(src => src && src.toLowerCase().includes(slug));
   }
 
   function collectDownloadLinks() {
     const article = document.querySelector("article, .post, .entry-content, .post-content");
     if (!article) return [];
     return [...article.querySelectorAll("a[href*='download']")]
+      .filter(a => a.closest("article, .post, .entry-content, .post-content"))
       .map(a => ({ text: a.textContent.trim() || a.href, href: a.href }));
   }
 
@@ -163,47 +154,43 @@
     document.body.insertBefore(container, document.querySelector("#disqus_thread"));
   }
 
-// --- Main runner ---
-async function refinePage() {
-  // Guard: if we already built, skip
-  if (document.querySelector("#su-clean-card")) return;
+  // --- Main runner ---
+  async function refinePage() {
+    if (document.querySelector("#su-clean-card")) return; // guard
 
-  const titleEl = document.querySelector("h1");
-  if (!titleEl) return;
+    const titleEl = document.querySelector("h1");
+    if (!titleEl) return;
 
-  const title = titleEl.innerText.replace(/Free Download.*$/i, "").trim();
-  const desc = scrapeDescription();
-  const screenshots = scrapeScreenshots(title);
-  const downloads = collectDownloadLinks();
+    const title = titleEl.innerText.replace(/Free Download.*$/i, "").trim();
+    const desc = scrapeDescription();
+    const screenshots = scrapeScreenshots(title);
+    const downloads = collectDownloadLinks();
 
-  clearPageButKeepDisqus();
+    clearPageButKeepDisqus();
 
-  const videoId = await fetchYouTubeTrailerId(title) || null;
+    const videoId = await fetchYouTubeTrailerId(title) || null;
+    buildCleanLayout(title, desc, screenshots, downloads, videoId);
+  }
 
-  buildCleanLayout(title, desc, screenshots, downloads, videoId);
-}
+  // --- Observer setup ---
+  document.addEventListener("DOMContentLoaded", () => {
+    refinePage();
 
-// --- Observer setup ---
-document.addEventListener("DOMContentLoaded", () => {
-  refinePage();
+    let debounce;
+    const target = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
 
-  let debounce;
-  const target = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
+    const observer = new MutationObserver(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        observer.disconnect();
+        if (!document.querySelector("#su-clean-card")) {
+          refinePage();
+        }
+        observer.observe(target, { childList: true, subtree: true });
+      }, 1200);
+    });
 
-  const observer = new MutationObserver(() => {
-    clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      observer.disconnect();
-      // Only rebuild if our container is missing
-      if (!document.querySelector("#su-clean-card")) {
-        refinePage();
-      }
-      observer.observe(target, { childList: true, subtree: true });
-    }, 1200); // slightly longer debounce
+    observer.observe(target, { childList: true, subtree: true });
   });
-
-  observer.observe(target, { childList: true, subtree: true });
-});
-
 
 })();
