@@ -1,8 +1,9 @@
+
 // ==UserScript==
 // @name         SU YouTube Embed + Clean Flex Layout + Tables (Hybrid 3.2)
 // @namespace    https://github.com/Callmesnake5561/SUYouTubeEmbed
 // @version      3.2
-// @description  Stable overlay: video left, styled tables right; description; grouped mirrors; robust observer (no body wipe)
+// @description  Stable overlay: video left, styled tables right; description + screenshots; grouped mirrors; robust observer (no body wipe)
 // @match        https://steamunderground.net/*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
@@ -30,7 +31,7 @@
     return t.trim();
   }
 
-  // POLISHED FLEX LAYOUT: video left, tables right, description
+  // POLISHED FLEX LAYOUT: video left, tables right, description and screenshots below
   function ensureInfoCard(titleEl) {
     let container = document.querySelector("[data-suinfocard]");
     if (container) return container;
@@ -59,6 +60,11 @@
       </div>
 
       <div id="su-description" style="margin-top:18px; background:#202020; padding:12px; border-radius:6px"></div>
+
+      <div id="su-screenshots" style="margin-top:18px">
+        <h3 style="margin:0 0 8px 0">📸 Screenshots</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:10px"></div>
+      </div>
 
       <div id="su-links" style="margin-top:12px"></div>
     `;
@@ -110,7 +116,7 @@
   // Requirements (stable v3.1 parser, rendered as styled table)
   function fillRequirements(container) {
     const raw = document.body.innerText || "";
-    const match = raw.match(/System requirements([\s\S]*?)(Support the game|Tags|Share on|Download)/i);
+    const match = raw.match(/System requirements([\s\S]*?)(Support the game|Tags|Share on|Screenshots|Download)/i);
     const reqDiv = container.querySelector("#su-requirements");
 
     if (!match) {
@@ -316,7 +322,38 @@
       .sort((a,b) => b.length - a.length)[0];
     const box = container.querySelector("#su-description");
     box.textContent = pick || "No description available.";
-  
+  }
+
+  // Screenshots grid (new section)
+  function fillScreenshots(container, title) {
+    const slug = toLower(cleanGameTitle(title)).replace(/[^a-z0-9]+/g, "-");
+    const imgs = [...document.querySelectorAll("img")];
+    let shots = imgs
+      .filter(img => {
+        const s = toLower(img.src || "");
+        const alt = toLower(img.alt || "");
+        const inContent = /uploads|wp-content|images|content/.test(s);
+        const matches = s.includes(slug) || alt.includes(slug) || /screenshot|screen|image/.test(alt);
+        return inContent && matches;
+      })
+      .map(img => img.src);
+
+    if (!shots.length) {
+      shots = imgs.filter(img => /uploads|wp-content|images|content/.test(toLower(img.src || ""))).slice(0, 6).map(img => img.src);
+    }
+
+    const grid = container.querySelector("#su-screenshots div");
+    grid.innerHTML = "";
+    shots.forEach(src => {
+      const img = document.createElement("img");
+      img.src = src;
+      img.style.width = "100%";
+      img.style.borderRadius = "6px";
+      img.loading = "lazy";
+      grid.appendChild(img);
+    });
+  }
+
   // YouTube embed (stable v3.1 with fallback)
   function embedVideo(videoId, container) {
     const slot = container.querySelector("#su-video");
@@ -390,6 +427,7 @@
 
     const cleanTitle = cleanGameTitle(titleEl.innerText);
     fillDescription(card);
+    fillScreenshots(card, cleanTitle);
     tryYTQueries(card, cleanTitle);
   }
 
