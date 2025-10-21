@@ -1,9 +1,8 @@
 // ==UserScript==
 // @name         SU Clean Game Page Rebuild
 // @namespace    SURebuild
-// @version      1.1
-// @description  Replace SU game pages with a clean layout: title, trailer, description, screenshots, downloads, and Disqus only
-// @author       Brandon
+// @version      2.1
+// @description  Clean SU game pages: title, trailer, description, screenshots, downloads, and Disqus only
 // @match        https://steamunderground.net/*
 // @grant        none
 // ==/UserScript==
@@ -11,39 +10,54 @@
 (function() {
   'use strict';
 
-  // --- Scrape description ---
+  // --- Utility helpers ---
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function ensureInfoCard(titleEl) {
+    let card = document.querySelector("#su-clean-card");
+    if (card) return card;
+
+    card = document.createElement("div");
+    card.id = "su-clean-card";
+    card.style.background = "#1e1e1e";
+    card.style.padding = "20px";
+    card.style.margin = "20px auto";
+    card.style.borderRadius = "8px";
+    titleEl.insertAdjacentElement("afterend", card);
+    return card;
+  }
+
+  // --- Scrapers ---
   function scrapeDescription() {
-    const article = document.querySelector("article, .entry-content, .post-content");
+    const article = document.querySelector("article, .post, .entry-content, .post-content");
     if (!article) return "";
     const paras = [...article.querySelectorAll("p")];
     return paras.map(p => p.innerText.trim())
                 .filter(t => t.length > 50 && !t.toLowerCase().includes("download"))[0] || "";
   }
 
-  // --- Scrape screenshots ---
-  function scrapeScreenshots() {
-    return [...document.querySelectorAll("img")]
-      .filter(img => img.src && !img.src.includes("logo") && !img.src.includes("icon"))
-      .map(img => img.src);
+  function scrapeScreenshots(title) {
+    const article = document.querySelector("article, .post, .entry-content, .post-content");
+    if (!article) return [];
+    const slug = title.split(" ")[0]; // crude filter by first word
+    return [...article.querySelectorAll("img")]
+      .map(img => img.src)
+      .filter(src => src && src.toLowerCase().includes(slug.toLowerCase()));
   }
 
-  // --- Scrape downloads ---
   function collectDownloadLinks() {
-    const links = [...document.querySelectorAll("a[href*='download']")];
-    return links.map(a => ({
-      text: a.textContent.trim() || a.href,
-      href: a.href
-    }));
+    const article = document.querySelector("article, .post, .entry-content, .post-content");
+    if (!article) return [];
+    return [...article.querySelectorAll("a[href*='download']")]
+      .map(a => ({ text: a.textContent.trim() || a.href, href: a.href }));
   }
 
-  // --- Clear page but keep Disqus ---
   function clearPageButKeepDisqus() {
     const disqus = document.querySelector("#disqus_thread");
     document.body.innerHTML = "";
     if (disqus) document.body.appendChild(disqus);
   }
 
-  // --- Fetch YouTube trailer ID ---
   async function fetchYouTubeTrailerId(query) {
     try {
       const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + " trailer")}`;
@@ -60,6 +74,7 @@
   // --- Build clean layout ---
   function buildCleanLayout(title, desc, screenshots, downloads, videoId) {
     const container = document.createElement("div");
+    container.id = "su-clean-card";
     container.style.maxWidth = "1000px";
     container.style.margin = "20px auto";
     container.style.fontFamily = "Segoe UI, sans-serif";
@@ -110,13 +125,13 @@
       const ssBlock = document.createElement("div");
       ssBlock.innerHTML = "<h3 style='color:#fff;'>📸 Screenshots</h3>";
       const grid = document.createElement("div");
-      grid.style.display = "grid";
-      grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(200px, 1fr))";
+      grid.style.display = "flex";
       grid.style.gap = "10px";
+      grid.style.flexWrap = "wrap";
       screenshots.forEach(src => {
         const img = document.createElement("img");
         img.src = src;
-        img.style.width = "100%";
+        img.style.maxWidth = "48%";
         img.style.borderRadius = "4px";
         grid.appendChild(img);
       });
@@ -148,26 +163,47 @@
     document.body.insertBefore(container, document.querySelector("#disqus_thread"));
   }
 
-  // --- Main ---
-  async function refinePage() {
-    const titleEl = document.querySelector("h1");
-    if (!titleEl) return;
+// --- Main runner ---
+async function refinePage() {
+  // Guard: if we already built, skip
+  if (document.querySelector("#su-clean-card")) return;
 
-    // Collect before clearing
-    const title = titleEl.innerText;
-    const desc = scrapeDescription();
-    const screenshots = scrapeScreenshots();
-    const downloads = collectDownloadLinks();
+  const titleEl = document.querySelector("h1");
+  if (!titleEl) return;
 
-    // Clear page
-    clearPageButKeepDisqus();
+  const title = titleEl.innerText.replace(/Free Download.*$/i, "").trim();
+  const desc = scrapeDescription();
+  const screenshots = scrapeScreenshots(title);
+  const downloads = collectDownloadLinks();
 
-    // Get trailer
-    const videoId = await fetchYouTubeTrailerId(title.replace(/Free Download.*$/i, "").trim()) || null;
+  clearPageButKeepDisqus();
 
-    // Rebuild
-    buildCleanLayout(title, desc, screenshots, downloads, videoId);
-  }
+  const videoId = await fetchYouTubeTrailerId(title) || null;
 
-  window.addEventListener("load", refinePage);
+  buildCleanLayout(title, desc, screenshots, downloads, videoId);
+}
+
+// --- Observer setup ---
+document.addEventListener("DOMContentLoaded", () => {
+  refinePage();
+
+  let debounce;
+  const target = document.querySelector("article, .post, .entry-content, .post-content") || document.body;
+
+  const observer = new MutationObserver(() => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      observer.disconnect();
+      // Only rebuild if our container is missing
+      if (!document.querySelector("#su-clean-card")) {
+        refinePage();
+      }
+      observer.observe(target, { childList: true, subtree: true });
+    }, 1200); // slightly longer debounce
+  });
+
+  observer.observe(target, { childList: true, subtree: true });
+});
+
+
 })();
