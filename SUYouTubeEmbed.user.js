@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SU Clean Game Page Rebuild
 // @namespace    SURebuild
-// @version      1.0
+// @version      1.1
 // @description  Replace SU game pages with a clean layout: title, trailer, description, screenshots, downloads, and Disqus only
 // @author       Brandon
 // @match        https://steamunderground.net/*
@@ -10,9 +10,6 @@
 
 (function() {
   'use strict';
-
-  // --- Utility ---
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // --- Scrape description ---
   function scrapeDescription() {
@@ -89,6 +86,13 @@
       iframe.allowFullscreen = true;
       iframe.style.flex = "1";
       flex.appendChild(iframe);
+    } else {
+      const link = document.createElement("a");
+      link.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(title + " trailer")}`;
+      link.textContent = "🔗 Watch trailer on YouTube";
+      link.target = "_blank";
+      link.style.color = "#4da6ff";
+      flex.appendChild(link);
     }
 
     const descDiv = document.createElement("div");
@@ -149,16 +153,20 @@
     const titleEl = document.querySelector("h1");
     if (!titleEl) return;
 
+    // Collect before clearing
+    const title = titleEl.innerText;
     const desc = scrapeDescription();
     const screenshots = scrapeScreenshots();
     const downloads = collectDownloadLinks();
 
+    // Clear page
     clearPageButKeepDisqus();
 
-    const videoId = await fetchYouTubeTrailerId(titleEl.innerText.replace(/Free Download.*$/i, "").trim())
-                    || null;
+    // Get trailer
+    const videoId = await fetchYouTubeTrailerId(title.replace(/Free Download.*$/i, "").trim()) || null;
 
-    buildCleanLayout(titleEl.innerText, desc, screenshots, downloads, videoId);
+    // Rebuild
+    buildCleanLayout(title, desc, screenshots, downloads, videoId);
   }
 
   window.addEventListener("load", refinePage);
