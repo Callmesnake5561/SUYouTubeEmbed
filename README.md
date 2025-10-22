@@ -20,7 +20,7 @@ This userscript overhauls game pages with **dark mode**, **YouTube embeds**, **c
 
 ## 📸 Screenshots  
 
-*(Add screenshots here for instant visual impact — dark theme, info card, trailer embed, etc.)*  
+ 
 
 ---
 
