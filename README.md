@@ -20,8 +20,10 @@ This userscript overhauls game pages with **dark mode**, **YouTube embeds**, **c
 
 ## 📸 Screenshots  
 
-<p float="left">
-  <img src="assets/screenshot1.png" width="300"/>
+<p 
+
+
+  <img src="![Screenshot_21-10-2025_194831_steamunderground net](https://github.com/user-attachments/assets/bc6c0429-2991-496e-bca8-e3bdeb613ba0)" width="300"/>
   <img src="assets/screenshot2.png" width="300"/>
   <img src="assets/screenshot3.png" width="300"/>
 </p>
