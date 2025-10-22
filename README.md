@@ -20,10 +20,12 @@ This userscript overhauls game pages with **dark mode**, **YouTube embeds**, **c
 
 ## 📸 Screenshots  
 
- ![Screenshot_21-10-2025_194846_steamunderground net](https://github.com/user-attachments/assets/6a53e005-b128-4c93-9ad4-9a682e0d6dc4)
-![Screenshot_21-10-2025_194831_steamunderground net](https://github.com/user-attachments/assets/94e5e9f2-32d3-49c9-af83-8c192fd57ff4)
-![Screenshot_21-10-2025_19486_steamunderground net](https://github.com/user-attachments/assets/557a9be3-ef84-46fc-bfbb-a33b51850cf8)
-![Screenshot_21-10-2025_194743_steamunderground net](https://github.com/user-attachments/assets/17198c07-96ee-42e1-9dfd-c6900c06a98a)
+<p float="left">
+  <img src="assets/screenshot1.png" width="300"/>
+  <img src="assets/screenshot2.png" width="300"/>
+  <img src="assets/screenshot3.png" width="300"/>
+</p>
+
 
 
 ---
