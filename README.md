@@ -1,72 +1,50 @@
-# 🎬 SUYouTubeEmbed
+# 💎 SU Refined – Full Site Dark Theme  
 
-**SUYouTubeEmbed** is a Tampermonkey/Violentmonkey userscript that transforms [SteamUnderground](https://steamunderground.net/) game pages into clean, info‑rich dashboards.  
-It automatically embeds a top YouTube review or gameplay video, cleans messy titles, adds quick external links, parses system requirements, and organizes download mirrors into a neat, expandable list.
-
----
-
-## ✨ Features
-
-- 🧹 **Smart title cleaner**  
-  Removes clutter like “PC Game”, “Free Download”, version tags, and parentheses.
-
-- 🎥 **Automatic YouTube embed**  
-  ▸ Scrapes YouTube search results (no API key needed)  
-  ▸ Tries multiple queries (`review`, `gameplay`, `trailer`, etc.)  
-  ▸ Embeds the top video inline under the game title  
-  ▸ Shows a clear red “Search YouTube” button if no video is found
-
-- 📊 **Info card overlay**  
-  Displays release date, version, and scene group right under the title.
-
-- 🖥️ **System requirements table**  
-  Parses the requirements block into a clean, two‑column table.
-
-- 🔗 **Quick external links**  
-  One‑click buttons for Metacritic, SteamDB, and YouTube search.
-
-- 📥 **Download mirrors organizer**  
-  ▸ Detects links from hosts like DataNodes, Gofile, AkiraBox, MediaFire, Pixeldrain, etc.  
-  ▸ Deduplicates and groups by host  
-  ▸ Shows top 3 hosts with 1 mirror each by default  
-  ▸ Extra mirrors hidden behind a “Show all mirrors” toggle
-
-- ⚡ **Lightweight & resilient**  
-  ▸ No API quotas or external dependencies  
-  ▸ Debounced observer prevents flicker  
-  ▸ Guards ensure video and tables don’t re‑render unnecessarily
+🚀 **Transform Steam Underground into a sleek, futuristic dashboard.**  
+This userscript overhauls game pages with **dark mode**, **YouTube embeds**, **clean info cards**, and **modular tables** — all styled for clarity and speed.  
 
 ---
 
-## 🚀 Installation
+## ✨ Features  
 
-1. Install a userscript manager:  
+- 🌑 **Full‑site dark theme** with neon accents  
+- 🎥 **Automatic YouTube trailer embeds** (with smart fallbacks)  
+- 📊 **Game info cards** (release date, version, scene group)  
+- 💻 **System requirements tables** (clean, responsive, styled)  
+- 📥 **Download links grouped by host** with mirror toggles  
+- 📝 **Game descriptions** pulled from Wikipedia or fallback scraping  
+- 🌐 **External quick links** (SteamDB, YouTube search)  
+- ⚡ **Optimized performance** with async data fetching and mutation observer  
+
+---
+
+## 📸 Screenshots  
+
+*(Add screenshots here for instant visual impact — dark theme, info card, trailer embed, etc.)*  
+
+---
+
+## 🛠️ Installation  
+
+1. 📦 Install a userscript manager:  
+   - [Violentmonkey](https://violentmonkey.github.io/)  
    - [Tampermonkey](https://www.tampermonkey.net/)  
-   - [Violentmonkey](https://violentmonkey.github.io/)
 
-2. Click to install the script:  
-   [**Install SUYouTubeEmbed**](https://github.com/Callmesnake5561/SUYouTubeEmbed/raw/main/SUYouTubeEmbed.user.js)
+2. 🔗 [Click here to install the script](https://github.com/Callmesnake5561/SUYouTubeEmbed/raw/main/SUYouTubeEmbed.user.js)  
 
-3. Visit any SteamUnderground game page — the overlay will appear automatically.
+3. ✅ Refresh any **Steam Underground** page and enjoy the upgrade!  
 
 ---
 
-## 🛠️ Development
+## ⚙️ Configuration  
 
-- Written in plain JavaScript, no frameworks  
-- Uses `GM_xmlhttpRequest` (with `fetch` fallback) for YouTube scraping  
-- MutationObserver with debounce ensures compatibility with dynamic pages  
-- Configurable host priority and link limits in the `CONFIG` object
+The script includes a **config block** you can tweak:  
 
----
-
-## 🤝 Contributing
-
-Pull requests and feature suggestions are welcome!  
-If you find a bug or want a new host supported, open an issue.
-
----
-
-## 📜 License
-
-MIT License — free to use, modify, and share.
+```js
+const CONFIG = {
+  stripWords: ["PC Game", "Free Download", "Direct Download", "Download"],
+  ytQueries: ["review", "gameplay", "trailer", "overview", ""],
+  hostPriority: ["datanodes", "torrent", "gofile", "akirabox", "mediafire"],
+  primaryHostLimit: 3,
+  linksPerHostLimit: 1
+};
